@@ -181,6 +181,7 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 18px; color: var(--sub); cursor: pointer; user-select: none;
     -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+    touch-action: none; /* 이 영역에서는 브라우저 제스처(확대·스크롤)를 전부 차단 */
   }
   .tap-pad:active { background: rgba(77, 163, 255, 0.12); border-color: var(--accent); color: var(--accent); }
 
@@ -211,7 +212,7 @@
     <nav class="tabs" id="tabs"></nav>
   </div>
   <main id="view"></main>
-  <div class="hint" style="text-align:center; margin-top:28px">지판 트레이너 v1.3</div>
+  <div class="hint" style="text-align:center; margin-top:28px">지판 트레이너 v1.4</div>
 </div>
 
 <script>
@@ -2225,47 +2226,61 @@ function mountTap() {
     return 60000 / avg;
   }
 
-  function render() {
-    const bpm = currentBpm();
-    view.innerHTML = `
-      <div class="card" style="text-align:center">
-        <div class="q-title">탭 템포 — BPM 측정</div>
-        <div class="q-sub">박자에 맞춰 아래 영역을 탭하세요 (스페이스바도 가능) · 2.5초 이상 쉬면 자동 초기화</div>
-        <div class="tap-pad" id="tapPad">👆 여기를 박자에 맞춰 탭</div>
-        <div style="display:flex; gap:24px; justify-content:center; flex-wrap:wrap; margin-top:8px">
-          <div>
-            <div class="big-score" style="color:var(--accent)">${bpm ? Math.round(bpm) : '—'}</div>
-            <div class="hint"><b style="color:var(--text)">4비트 기준</b> — 4분음표로 탭했을 때의 BPM</div>
-          </div>
-          <div>
-            <div class="big-score" style="color:var(--good)">${bpm ? Math.round(bpm / 2) : '—'}</div>
-            <div class="hint"><b style="color:var(--text)">8비트 기준</b> — 8분음표로 탭했을 때의 곡 BPM</div>
-          </div>
+  // 주의: 탭할 때 화면을 다시 그리면 터치 도중 요소가 교체되어
+  // iOS가 더블탭 확대를 발동시킨다. 숫자만 제자리에서 갱신할 것.
+  view.innerHTML = `
+    <div class="card" style="text-align:center">
+      <div class="q-title">탭 템포 — BPM 측정</div>
+      <div class="q-sub">박자에 맞춰 아래 영역을 탭하세요 (스페이스바도 가능) · 2.5초 이상 쉬면 자동 초기화</div>
+      <div class="tap-pad" id="tapPad">👆 여기를 박자에 맞춰 탭</div>
+      <div style="display:flex; gap:24px; justify-content:center; flex-wrap:wrap; margin-top:8px">
+        <div>
+          <div class="big-score" style="color:var(--accent)" id="tapBpm4">—</div>
+          <div class="hint"><b style="color:var(--text)">4비트 기준</b> — 4분음표로 탭했을 때의 BPM</div>
         </div>
-        <div class="hint" style="margin-top:12px">탭 ${tapState.times.length}회${bpm ? ` · 평균 간격 ${Math.round(60000 / bpm)}ms` : ''}</div>
-        <div style="margin-top:14px">
-          <button class="btn ghost" id="tapReset">초기화</button>
+        <div>
+          <div class="big-score" style="color:var(--good)" id="tapBpm8">—</div>
+          <div class="hint"><b style="color:var(--text)">8비트 기준</b> — 8분음표로 탭했을 때의 곡 BPM</div>
         </div>
       </div>
-      <div class="card">
-        <div class="hint">💡 곡의 빠르기를 잴 때: 발로 박자를 세듯 <b style="color:var(--text)">쿵-쿵-쿵-쿵(4분음표)</b>으로 탭하면 왼쪽(4비트) 값이 곡의 BPM입니다. 만약 <b style="color:var(--text)">쿵쿵쿵쿵쿵쿵쿵쿵(8분음표)</b>처럼 두 배 빠르게 탭했다면 오른쪽(8비트) 값을 보면 됩니다.</div>
-      </div>`;
+      <div class="hint" style="margin-top:12px" id="tapInfo">탭 0회</div>
+      <div style="margin-top:14px">
+        <button class="btn ghost" id="tapReset">초기화</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="hint">💡 곡의 빠르기를 잴 때: 발로 박자를 세듯 <b style="color:var(--text)">쿵-쿵-쿵-쿵(4분음표)</b>으로 탭하면 왼쪽(4비트) 값이 곡의 BPM입니다. 만약 <b style="color:var(--text)">쿵쿵쿵쿵쿵쿵쿵쿵(8분음표)</b>처럼 두 배 빠르게 탭했다면 오른쪽(8비트) 값을 보면 됩니다.</div>
+    </div>`;
 
-    function doTap() {
-      const now = performance.now();
-      const last = tapState.times[tapState.times.length - 1];
-      if (last && now - last > 2500) tapState.times = [];
-      tapState.times.push(now);
-      if (tapState.times.length > 24) tapState.times.shift();
-      playClickSound(null, false);
-      render();
-    }
+  const pad = view.querySelector('#tapPad');
+  const bpm4El = view.querySelector('#tapBpm4');
+  const bpm8El = view.querySelector('#tapBpm8');
+  const infoEl = view.querySelector('#tapInfo');
 
-    view.querySelector('#tapPad').addEventListener('pointerdown', (e) => { e.preventDefault(); doTap(); });
-    view.querySelector('#tapReset').addEventListener('click', () => { tapState.times = []; render(); });
-    tapHandler = doTap;
+  function update() {
+    const bpm = currentBpm();
+    bpm4El.textContent = bpm ? Math.round(bpm) : '—';
+    bpm8El.textContent = bpm ? Math.round(bpm / 2) : '—';
+    infoEl.textContent = '탭 ' + tapState.times.length + '회' + (bpm ? ' · 평균 간격 ' + Math.round(60000 / bpm) + 'ms' : '');
   }
-  render();
+
+  function doTap() {
+    const now = performance.now();
+    const last = tapState.times[tapState.times.length - 1];
+    if (last && now - last > 2500) tapState.times = [];
+    tapState.times.push(now);
+    if (tapState.times.length > 24) tapState.times.shift();
+    playClickSound(null, false);
+    update();
+  }
+
+  pad.addEventListener('pointerdown', (e) => { e.preventDefault(); doTap(); });
+  // iOS 더블탭 확대·롱프레스 등 브라우저 기본 동작을 패드에서 완전히 차단
+  pad.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+  pad.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
+  view.querySelector('#tapReset').addEventListener('click', () => { tapState.times = []; update(); });
+  tapHandler = doTap;
+  update();
 }
 
 /* ==================== 배우기 1: 지판 탐색 ==================== */
