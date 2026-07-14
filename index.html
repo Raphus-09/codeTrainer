@@ -151,7 +151,8 @@
   .controls label { font-size: 13px; color: var(--sub); }
   select, input[type="number"] {
     background: var(--panel2); color: var(--text); border: 1px solid var(--line);
-    border-radius: 8px; padding: 7px 10px; font-size: 14px; font-family: inherit;
+    border-radius: 8px; padding: 7px 10px; font-family: inherit;
+    font-size: 16px; /* 16px 미만이면 iOS가 포커스 시 화면을 자동 확대함 */
   }
   input[type="range"] { accent-color: var(--accent); }
   .seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
@@ -210,7 +211,7 @@
     <nav class="tabs" id="tabs"></nav>
   </div>
   <main id="view"></main>
-  <div class="hint" style="text-align:center; margin-top:28px">지판 트레이너 v1.2</div>
+  <div class="hint" style="text-align:center; margin-top:28px">지판 트레이너 v1.3</div>
 </div>
 
 <script>
@@ -756,6 +757,20 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && nextHandler) { e.preventDefault(); nextHandler(); }
   if (e.code === 'Space' && tapHandler) { e.preventDefault(); tapHandler(); }
 });
+
+// iOS 더블탭 확대 차단: 같은 위치를 300ms 안에 두 번 탭할 때만 기본 동작을 막는다
+// (탭 템포는 pointerdown 기반이라 영향 없음)
+let lastTapTime = 0, lastTapX = 0, lastTapY = 0;
+document.addEventListener('touchend', (e) => {
+  const touch = e.changedTouches[0];
+  if (!touch) return;
+  const now = Date.now();
+  const dist = Math.hypot(touch.clientX - lastTapX, touch.clientY - lastTapY);
+  if (now - lastTapTime < 300 && dist < 40) e.preventDefault();
+  lastTapTime = now;
+  lastTapX = touch.clientX;
+  lastTapY = touch.clientY;
+}, { passive: false });
 
 function weakLineHTML(mode, title) {
   const items = weakItems(mode);
