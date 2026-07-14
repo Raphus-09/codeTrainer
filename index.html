@@ -17,7 +17,12 @@
     --bad: #ff5d5d;
     --root: #ff7a4d;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  * {
+    box-sizing: border-box; margin: 0; padding: 0;
+    touch-action: manipulation; /* 모바일 더블탭 확대 방지 (스크롤·핀치 줌은 유지) */
+    -webkit-tap-highlight-color: transparent;
+  }
+  .board-scroll { touch-action: pan-x pan-y; }
   body {
     background: var(--bg);
     color: var(--text);
